@@ -1,0 +1,25 @@
+*.iml
+.gradle/
+.idea/
+local.properties
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Profiling
+*.hprof
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Editor swap / backup files
+*~
+*.swp
+*.swo
+*.swn
+
+# Build logs
+*.log

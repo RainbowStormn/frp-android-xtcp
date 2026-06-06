@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">frpc XTCP Visitor</string>
+    <string name="notification_channel_name">frpc 运行状态</string>
+    <string name="notification_channel_description">显示 frpc XTCP visitor 的运行状态</string>
+    <string name="notification_running">frpc 正在运行</string>
+    <string name="notification_description">本地 visitor 正在监听配置的端口</string>
+    <string name="action_stop">停止</string>
+    <string name="screen_description">在手机 127.0.0.1 上启动 XTCP visitor。配置只保存在 App 私有目录。</string>
+    <string name="hint_server_addr">serverAddr（公网 frps 地址）</string>
+    <string name="hint_server_port">serverPort</string>
+    <string name="hint_token">auth.token</string>
+    <string name="hint_server_name">serverName，例如 home_ssh</string>
+    <string name="hint_secret_key">secretKey</string>
+    <string name="hint_bind_port">bindPort</string>
+    <string name="keep_tunnel_open">开启 keepTunnelOpen</string>
+    <string name="action_start">启动</string>
+    <string name="action_clear_logs">清空日志</string>
+    <string name="log_title">最近 500 行日志</string>
+    <string name="notification_permission_denied">通知权限未授予；服务仍会启动，但通知栏可能不显示通知</string>
+</resources>

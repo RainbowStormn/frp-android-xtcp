@@ -1,0 +1,68 @@
+plugins {
+    id 'com.android.application'
+}
+
+def frpcArm64Asset = file('src/main/assets/bin/frpc-arm64-v8a')
+def frpcX8664Asset = file('src/main/assets/bin/frpc-x86_64')
+def generatedFrpcJniDir = layout.buildDirectory.dir('generated/frpcJniLibs')
+def generatedFrpcJniPath = file("$buildDir/generated/frpcJniLibs")
+
+tasks.register('prepareFrpcJniLibs', Sync) {
+    into(generatedFrpcJniDir)
+    from(frpcArm64Asset) {
+        into('arm64-v8a')
+        rename { 'libfrpc.so' }
+    }
+    from(frpcX8664Asset) {
+        into('x86_64')
+        rename { 'libfrpc.so' }
+    }
+}
+
+android {
+    namespace = 'com.example.frpcvisitor'
+
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
+
+    defaultConfig {
+        applicationId = 'com.example.frpcvisitor'
+        minSdk = 23
+        targetSdk = 36
+        versionCode = 1
+        versionName = '0.1.0'
+
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDir(generatedFrpcJniPath)
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += ['**/libfrpc.so']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(tasks.named('prepareFrpcJniLibs'))
+}
