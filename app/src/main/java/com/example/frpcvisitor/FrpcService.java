@@ -130,9 +130,19 @@ public final class FrpcService extends Service {
             }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            logs.append("[app] frpc 运行线程被中断");
+            if (isStopping()) {
+                stoppedByUser = true;
+                logs.append("[app] frpc 已停止");
+            } else {
+                logs.append("[app] frpc 运行线程被中断");
+            }
         } catch (Exception exception) {
-            logs.append("[app] frpc 启动失败: " + safeMessage(exception));
+            if (isStopping()) {
+                stoppedByUser = true;
+                logs.append("[app] frpc 已停止");
+            } else {
+                logs.append("[app] frpc 启动失败: " + safeMessage(exception));
+            }
         } finally {
             synchronized (processLock) {
                 starting = false;
@@ -162,6 +172,12 @@ public final class FrpcService extends Service {
         }
         removeForeground();
         stopSelf();
+    }
+
+    private boolean isStopping() {
+        synchronized (processLock) {
+            return stopping;
+        }
     }
 
     @SuppressWarnings("deprecation")

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">frpc XTCP Visitor</string>
+    <string name="app_name">frpc Android Client</string>
     <string name="notification_channel_name">frpc 运行状态</string>
-    <string name="notification_channel_description">显示 frpc XTCP visitor 的运行状态</string>
+    <string name="notification_channel_description">显示 frpc visitor 或 proxy 的运行状态</string>
     <string name="notification_running">frpc 正在运行</string>
-    <string name="notification_description">本地 visitor 正在监听配置的端口</string>
+    <string name="notification_description">frpc visitor 或 proxy 正在运行</string>
     <string name="action_stop">停止</string>
-    <string name="screen_description">在手机 127.0.0.1 上启动 XTCP visitor。配置只保存在 App 私有目录。</string>
+    <string name="screen_description">连接远端 XTCP 服务，或把手机上的本地服务通过 frps 暴露出去。一次运行一种模式。</string>
     <string name="hint_server_addr">serverAddr（公网 frps 地址）</string>
     <string name="hint_server_port">serverPort</string>
     <string name="hint_token">auth.token</string>
@@ -14,8 +14,21 @@
     <string name="hint_secret_key">secretKey</string>
     <string name="hint_bind_port">bindPort</string>
     <string name="keep_tunnel_open">开启 keepTunnelOpen</string>
+    <string name="mode_label">运行模式</string>
+    <string name="visitor_section">XTCP 访问端设置</string>
+    <string name="proxy_section">手机服务暴露设置</string>
+    <string name="hint_proxy_name">proxyName，例如 phone_web</string>
+    <string name="hint_local_ip">localIP，通常为 127.0.0.1</string>
+    <string name="hint_local_port">localPort，手机本地服务端口</string>
+    <string name="hint_remote_port">remotePort，VPS 公网监听端口</string>
+    <string name="hint_proxy_secret_key">secretKey，供 XTCP visitor 使用</string>
     <string name="action_start">启动</string>
     <string name="action_clear_logs">清空日志</string>
     <string name="log_title">最近 500 行日志</string>
     <string name="notification_permission_denied">通知权限未授予；服务仍会启动，但通知栏可能不显示通知</string>
+    <string-array name="frpc_modes">
+        <item>XTCP 访问端</item>
+        <item>TCP 暴露服务</item>
+        <item>XTCP 暴露服务</item>
+    </string-array>
 </resources>

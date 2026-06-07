@@ -1,8 +1,17 @@
-# frpc XTCP Visitor for Android
+# frpc Android Client
 
 这是一个最小 Java Android App：把官方 frp 的 `frpc` 打包进 APK，由前台服务通过
-`ProcessBuilder` 执行 `frpc -c frpc.toml`。手机只作为 XTCP visitor，不实现
-VPNService、不重写 frp 协议，也不需要 root。
+`ProcessBuilder` 执行 `frpc -c frpc.toml`。它支持 XTCP visitor，也可以把手机上的
+本地 TCP 服务通过 frps 暴露出去。不实现 VPNService、不重写 frp 协议，也不需要 root。
+
+App 一次运行一种模式：
+
+- `XTCP 访问端`：手机监听 `127.0.0.1:bindPort`，访问其他 frpc 发布的 XTCP 服务。
+- `TCP 暴露服务`：frps 在公网 `remotePort` 监听，转发到手机的 `localIP:localPort`。
+- `XTCP 暴露服务`：手机发布 XTCP proxy，由另一台 frpc visitor 通过 secretKey 访问。
+
+当前版本为 `0.2.0`。三个模式共用同一个前台服务和 frpc 子进程，切换模式前应先点击
+“停止”，修改配置后再点击“启动”。
 
 ## 环境
 
@@ -131,6 +140,82 @@ keepTunnelOpen = false
 token 和 secretKey 会写入 App 私有目录的配置文件。界面日志会对这两个值做精确替换
 脱敏，App 本身不向 Logcat 输出配置或命令行。
 
+## TCP 暴露手机服务
+
+例如手机上有一个 HTTP 服务监听 `127.0.0.1:8080`，在 App 中选择
+`TCP 暴露服务`：
+
+```text
+proxyName: phone_web
+localIP: 127.0.0.1
+localPort: 8080
+remotePort: 18080
+```
+
+App 生成：
+
+```toml
+serverAddr = "公网 frps 地址"
+serverPort = 7000
+
+auth.method = "token"
+auth.token = "同一个 token"
+
+[[proxies]]
+name = "phone_web"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8080
+remotePort = 18080
+```
+
+启动成功后，外部设备访问：
+
+```text
+http://公网 VPS 地址:18080
+```
+
+需要同时满足：
+
+- VPS 防火墙和云安全组允许 TCP 18080。
+- frps 没有通过 `allowPorts` 禁止该端口。
+- 手机上的目标 App 确实在 `localIP:localPort` 监听。
+- Android 可能限制其他 App 仅绑定自身进程可见的接口；普通 TCP loopback 服务通常可用。
+
+TCP 暴露是公网直连，任何能访问该端口的人都能尝试连接。应由目标服务自行提供认证和
+TLS，或者使用 XTCP 暴露模式。
+
+## XTCP 暴露手机服务
+
+例如手机本地服务监听 `127.0.0.1:8022`，选择 `XTCP 暴露服务`：
+
+```text
+proxyName: phone_ssh
+secretKey: 自定义密钥
+localIP: 127.0.0.1
+localPort: 8022
+```
+
+另一台机器使用以下 visitor：
+
+```toml
+serverAddr = "公网 frps 地址"
+serverPort = 7000
+
+auth.method = "token"
+auth.token = "同一个 token"
+
+[[visitors]]
+name = "phone_ssh_visitor"
+type = "xtcp"
+serverName = "phone_ssh"
+secretKey = "同一个 secretKey"
+bindAddr = "127.0.0.1"
+bindPort = 6000
+```
+
+然后在另一台机器访问 `127.0.0.1:6000`。
+
 ## 被访问端 Linux frpc.toml
 
 ```toml
@@ -154,12 +239,12 @@ VPS 上的 frps、Linux 被访问端 frpc、Android visitor 应使用兼容的 f
 
 1. 编译 frpc 并放入 assets，执行 `./gradlew assembleDebug`。
 2. 执行 `adb install -r app/build/outputs/apk/debug/app-debug.apk`。
-3. 启动 VPS 上的 frps，再启动被访问端 Linux 机器上的 frpc。
-4. 打开 App，填写 frps 地址、token、`home_ssh`、secretKey，bindPort 保持 6000。
+3. 启动 VPS 上的 frps；测试 visitor 时，再启动被访问端 Linux 机器上的 frpc。
+4. 打开 App，选择运行模式并填写对应参数。
 5. Android 13 及以上允许通知权限，然后点击“启动”。
 6. 确认通知栏显示“frpc 正在运行”，界面日志显示已连接 frps。
-7. 在手机 SSH 客户端中连接 `127.0.0.1:6000`。不要填写手机局域网 IP。
-8. 确认连接通过 XTCP 到达内网机器的 `127.0.0.1:22`。
+7. visitor 模式下，在手机客户端连接 `127.0.0.1:6000`。
+8. TCP 暴露模式下，从外部连接 `VPS:remotePort`；XTCP 暴露模式下从另一台 visitor 连接。
 9. 点击 App 或通知中的“停止”，确认通知消失且再次连接
    `127.0.0.1:6000` 失败。
 10. 可用 `adb shell dumpsys activity services com.example.frpcvisitor` 检查服务状态。

@@ -9,16 +9,51 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public final class FrpcConfigManager {
+    public enum Mode {
+        XTCP_VISITOR,
+        TCP_PROXY,
+        XTCP_PROXY
+    }
+
     public static final class Config {
+        public final Mode mode;
         public final String serverAddr;
         public final int serverPort;
         public final String token;
-        public final String serverName;
+        public final String name;
         public final String secretKey;
+        public final String localIP;
+        public final int localPort;
         public final int bindPort;
+        public final int remotePort;
         public final boolean keepTunnelOpen;
 
-        public Config(
+        private Config(
+                Mode mode,
+                String serverAddr,
+                int serverPort,
+                String token,
+                String name,
+                String secretKey,
+                String localIP,
+                int localPort,
+                int bindPort,
+                int remotePort,
+                boolean keepTunnelOpen) {
+            this.mode = mode;
+            this.serverAddr = serverAddr;
+            this.serverPort = serverPort;
+            this.token = token;
+            this.name = name;
+            this.secretKey = secretKey;
+            this.localIP = localIP;
+            this.localPort = localPort;
+            this.bindPort = bindPort;
+            this.remotePort = remotePort;
+            this.keepTunnelOpen = keepTunnelOpen;
+        }
+
+        public static Config xtcpVisitor(
                 String serverAddr,
                 int serverPort,
                 String token,
@@ -26,13 +61,62 @@ public final class FrpcConfigManager {
                 String secretKey,
                 int bindPort,
                 boolean keepTunnelOpen) {
-            this.serverAddr = serverAddr;
-            this.serverPort = serverPort;
-            this.token = token;
-            this.serverName = serverName;
-            this.secretKey = secretKey;
-            this.bindPort = bindPort;
-            this.keepTunnelOpen = keepTunnelOpen;
+            return new Config(
+                    Mode.XTCP_VISITOR,
+                    serverAddr,
+                    serverPort,
+                    token,
+                    serverName,
+                    secretKey,
+                    "",
+                    0,
+                    bindPort,
+                    0,
+                    keepTunnelOpen);
+        }
+
+        public static Config tcpProxy(
+                String serverAddr,
+                int serverPort,
+                String token,
+                String proxyName,
+                String localIP,
+                int localPort,
+                int remotePort) {
+            return new Config(
+                    Mode.TCP_PROXY,
+                    serverAddr,
+                    serverPort,
+                    token,
+                    proxyName,
+                    "",
+                    localIP,
+                    localPort,
+                    0,
+                    remotePort,
+                    false);
+        }
+
+        public static Config xtcpProxy(
+                String serverAddr,
+                int serverPort,
+                String token,
+                String proxyName,
+                String secretKey,
+                String localIP,
+                int localPort) {
+            return new Config(
+                    Mode.XTCP_PROXY,
+                    serverAddr,
+                    serverPort,
+                    token,
+                    proxyName,
+                    secretKey,
+                    localIP,
+                    localPort,
+                    0,
+                    0,
+                    false);
         }
     }
 
@@ -43,9 +127,24 @@ public final class FrpcConfigManager {
         requireText(config.serverAddr, "serverAddr");
         requirePort(config.serverPort, "serverPort");
         requireText(config.token, "auth.token");
-        requireText(config.serverName, "serverName");
-        requireText(config.secretKey, "secretKey");
-        requirePort(config.bindPort, "bindPort");
+        requireText(config.name, config.mode == Mode.XTCP_VISITOR ? "serverName" : "proxyName");
+
+        switch (config.mode) {
+            case XTCP_VISITOR:
+                requireText(config.secretKey, "secretKey");
+                requirePort(config.bindPort, "bindPort");
+                break;
+            case TCP_PROXY:
+                requireLocalService(config);
+                requirePort(config.remotePort, "remotePort");
+                break;
+            case XTCP_PROXY:
+                requireLocalService(config);
+                requireText(config.secretKey, "secretKey");
+                break;
+            default:
+                throw new IllegalArgumentException("不支持的运行模式");
+        }
     }
 
     public static File write(Context context, Config config) throws IOException {
@@ -85,19 +184,42 @@ public final class FrpcConfigManager {
 
     private static String toToml(Config config, String dnsServer) {
         String dnsLine = dnsServer == null ? "" : "dnsServer = " + quote(dnsServer) + "\n";
-        return "serverAddr = " + quote(config.serverAddr) + "\n"
+        String common = "serverAddr = " + quote(config.serverAddr) + "\n"
                 + "serverPort = " + config.serverPort + "\n"
                 + dnsLine + "\n"
                 + "auth.method = \"token\"\n"
-                + "auth.token = " + quote(config.token) + "\n\n"
-                + "[[visitors]]\n"
-                + "name = \"phone_xtcp_visitor\"\n"
-                + "type = \"xtcp\"\n"
-                + "serverName = " + quote(config.serverName) + "\n"
-                + "secretKey = " + quote(config.secretKey) + "\n"
-                + "bindAddr = \"127.0.0.1\"\n"
-                + "bindPort = " + config.bindPort + "\n"
-                + "keepTunnelOpen = " + config.keepTunnelOpen + "\n";
+                + "auth.token = " + quote(config.token) + "\n\n";
+
+        switch (config.mode) {
+            case XTCP_VISITOR:
+                return common
+                        + "[[visitors]]\n"
+                        + "name = \"phone_xtcp_visitor\"\n"
+                        + "type = \"xtcp\"\n"
+                        + "serverName = " + quote(config.name) + "\n"
+                        + "secretKey = " + quote(config.secretKey) + "\n"
+                        + "bindAddr = \"127.0.0.1\"\n"
+                        + "bindPort = " + config.bindPort + "\n"
+                        + "keepTunnelOpen = " + config.keepTunnelOpen + "\n";
+            case TCP_PROXY:
+                return common
+                        + "[[proxies]]\n"
+                        + "name = " + quote(config.name) + "\n"
+                        + "type = \"tcp\"\n"
+                        + "localIP = " + quote(config.localIP) + "\n"
+                        + "localPort = " + config.localPort + "\n"
+                        + "remotePort = " + config.remotePort + "\n";
+            case XTCP_PROXY:
+                return common
+                        + "[[proxies]]\n"
+                        + "name = " + quote(config.name) + "\n"
+                        + "type = \"xtcp\"\n"
+                        + "secretKey = " + quote(config.secretKey) + "\n"
+                        + "localIP = " + quote(config.localIP) + "\n"
+                        + "localPort = " + config.localPort + "\n";
+            default:
+                throw new IllegalArgumentException("不支持的运行模式");
+        }
     }
 
     private static String getEmulatorDnsServer() {
@@ -152,5 +274,10 @@ public final class FrpcConfigManager {
         if (port < 1 || port > 65535) {
             throw new IllegalArgumentException(fieldName + " 必须在 1 到 65535 之间");
         }
+    }
+
+    private static void requireLocalService(Config config) {
+        requireText(config.localIP, "localIP");
+        requirePort(config.localPort, "localPort");
     }
 }

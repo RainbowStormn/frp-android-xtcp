@@ -15,8 +15,11 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,10 +34,20 @@ public final class MainActivity extends Activity implements LogRepository.Listen
     private EditText serverAddrInput;
     private EditText serverPortInput;
     private EditText tokenInput;
+    private Spinner modeInput;
+    private LinearLayout visitorFields;
+    private LinearLayout proxyFields;
+    private LinearLayout tcpRemotePortFields;
+    private LinearLayout proxySecretFields;
     private EditText serverNameInput;
-    private EditText secretKeyInput;
+    private EditText visitorSecretKeyInput;
     private EditText bindPortInput;
     private CheckBox keepTunnelOpenInput;
+    private EditText proxyNameInput;
+    private EditText localIPInput;
+    private EditText localPortInput;
+    private EditText remotePortInput;
+    private EditText proxySecretKeyInput;
     private TextView logView;
     private ScrollView pageScroll;
     private boolean startAfterPermission;
@@ -74,14 +87,87 @@ public final class MainActivity extends Activity implements LogRepository.Listen
         serverPortInput = addInput(content, R.string.hint_server_port, false, "7000");
         serverPortInput.setInputType(InputType.TYPE_CLASS_NUMBER);
         tokenInput = addInput(content, R.string.hint_token, true, null);
-        serverNameInput = addInput(content, R.string.hint_server_name, false, null);
-        secretKeyInput = addInput(content, R.string.hint_secret_key, true, null);
-        bindPortInput = addInput(content, R.string.hint_bind_port, false, "6000");
-        bindPortInput.setInputType(InputType.TYPE_CLASS_NUMBER);
 
+        TextView modeLabel = addSectionLabel(content, R.string.mode_label);
+        modeLabel.setPadding(0, dp(12), 0, dp(4));
+        modeInput = new Spinner(this);
+        ArrayAdapter<CharSequence> modeAdapter = ArrayAdapter.createFromResource(
+                this,
+                R.array.frpc_modes,
+                android.R.layout.simple_spinner_item);
+        modeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        modeInput.setAdapter(modeAdapter);
+        modeInput.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(
+                    AdapterView<?> parent,
+                    View view,
+                    int position,
+                    long id) {
+                updateModeFields();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+        content.addView(modeInput, matchWrap());
+
+        visitorFields = new LinearLayout(this);
+        visitorFields.setOrientation(LinearLayout.VERTICAL);
+        content.addView(visitorFields, matchWrap());
+        addSectionLabel(visitorFields, R.string.visitor_section);
+        serverNameInput = addInput(
+                visitorFields,
+                R.string.hint_server_name,
+                false,
+                null);
+        visitorSecretKeyInput = addInput(
+                visitorFields,
+                R.string.hint_secret_key,
+                true,
+                null);
+        bindPortInput = addInput(visitorFields, R.string.hint_bind_port, false, "6000");
+        bindPortInput.setInputType(InputType.TYPE_CLASS_NUMBER);
         keepTunnelOpenInput = new CheckBox(this);
         keepTunnelOpenInput.setText(R.string.keep_tunnel_open);
-        content.addView(keepTunnelOpenInput, matchWrap());
+        visitorFields.addView(keepTunnelOpenInput, matchWrap());
+
+        proxyFields = new LinearLayout(this);
+        proxyFields.setOrientation(LinearLayout.VERTICAL);
+        content.addView(proxyFields, matchWrap());
+        addSectionLabel(proxyFields, R.string.proxy_section);
+        proxyNameInput = addInput(
+                proxyFields,
+                R.string.hint_proxy_name,
+                false,
+                "phone_service");
+        localIPInput = addInput(
+                proxyFields,
+                R.string.hint_local_ip,
+                false,
+                "127.0.0.1");
+        localPortInput = addInput(proxyFields, R.string.hint_local_port, false, null);
+        localPortInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+
+        tcpRemotePortFields = new LinearLayout(this);
+        tcpRemotePortFields.setOrientation(LinearLayout.VERTICAL);
+        proxyFields.addView(tcpRemotePortFields, matchWrap());
+        remotePortInput = addInput(
+                tcpRemotePortFields,
+                R.string.hint_remote_port,
+                false,
+                null);
+        remotePortInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+
+        proxySecretFields = new LinearLayout(this);
+        proxySecretFields.setOrientation(LinearLayout.VERTICAL);
+        proxyFields.addView(proxySecretFields, matchWrap());
+        proxySecretKeyInput = addInput(
+                proxySecretFields,
+                R.string.hint_proxy_secret_key,
+                true,
+                null);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -120,7 +206,32 @@ public final class MainActivity extends Activity implements LogRepository.Listen
         content.addView(logView, matchWrap());
 
         applySystemBarInsets(content, padding);
+        updateModeFields();
         return pageScroll;
+    }
+
+    private TextView addSectionLabel(LinearLayout parent, int textResource) {
+        TextView label = new TextView(this);
+        label.setText(textResource);
+        label.setTextSize(16);
+        label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        label.setPadding(0, dp(8), 0, 0);
+        parent.addView(label, matchWrap());
+        return label;
+    }
+
+    private void updateModeFields() {
+        if (modeInput == null || visitorFields == null || proxyFields == null) {
+            return;
+        }
+        FrpcConfigManager.Mode mode = selectedMode();
+        boolean visitor = mode == FrpcConfigManager.Mode.XTCP_VISITOR;
+        visitorFields.setVisibility(visitor ? View.VISIBLE : View.GONE);
+        proxyFields.setVisibility(visitor ? View.GONE : View.VISIBLE);
+        tcpRemotePortFields.setVisibility(
+                mode == FrpcConfigManager.Mode.TCP_PROXY ? View.VISIBLE : View.GONE);
+        proxySecretFields.setVisibility(
+                mode == FrpcConfigManager.Mode.XTCP_PROXY ? View.VISIBLE : View.GONE);
     }
 
     private EditText addInput(
@@ -166,14 +277,51 @@ public final class MainActivity extends Activity implements LogRepository.Listen
     }
 
     private FrpcConfigManager.Config readConfig() {
-        return new FrpcConfigManager.Config(
-                text(serverAddrInput),
-                parsePort(serverPortInput, "serverPort"),
-                text(tokenInput),
-                text(serverNameInput),
-                text(secretKeyInput),
-                parsePort(bindPortInput, "bindPort"),
-                keepTunnelOpenInput.isChecked());
+        String serverAddr = text(serverAddrInput);
+        int serverPort = parsePort(serverPortInput, "serverPort");
+        String token = text(tokenInput);
+        switch (selectedMode()) {
+            case XTCP_VISITOR:
+                return FrpcConfigManager.Config.xtcpVisitor(
+                        serverAddr,
+                        serverPort,
+                        token,
+                        text(serverNameInput),
+                        text(visitorSecretKeyInput),
+                        parsePort(bindPortInput, "bindPort"),
+                        keepTunnelOpenInput.isChecked());
+            case TCP_PROXY:
+                return FrpcConfigManager.Config.tcpProxy(
+                        serverAddr,
+                        serverPort,
+                        token,
+                        text(proxyNameInput),
+                        text(localIPInput),
+                        parsePort(localPortInput, "localPort"),
+                        parsePort(remotePortInput, "remotePort"));
+            case XTCP_PROXY:
+                return FrpcConfigManager.Config.xtcpProxy(
+                        serverAddr,
+                        serverPort,
+                        token,
+                        text(proxyNameInput),
+                        text(proxySecretKeyInput),
+                        text(localIPInput),
+                        parsePort(localPortInput, "localPort"));
+            default:
+                throw new IllegalArgumentException("不支持的运行模式");
+        }
+    }
+
+    private FrpcConfigManager.Mode selectedMode() {
+        int position = modeInput == null ? 0 : modeInput.getSelectedItemPosition();
+        if (position == 1) {
+            return FrpcConfigManager.Mode.TCP_PROXY;
+        }
+        if (position == 2) {
+            return FrpcConfigManager.Mode.XTCP_PROXY;
+        }
+        return FrpcConfigManager.Mode.XTCP_VISITOR;
     }
 
     private void startServiceCompat() {
